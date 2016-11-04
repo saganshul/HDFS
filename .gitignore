@@ -115,3 +115,6 @@ tags
 
 # sftp configuration file
 sftp-config.json
+
+### HDFS ###
+ProtoBuf/HDFSProtoBuf.java
