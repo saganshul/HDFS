@@ -1,5 +1,6 @@
 package Client;
 
+import java.util.Scanner;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.NotBoundException;
@@ -18,7 +19,7 @@ public class Client {
 	
     private Client() {}
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws NotBoundException, IOException {
 
         try {
             registry = LocateRegistry.getRegistry(host);
@@ -28,6 +29,47 @@ public class Client {
             System.err.println("Client exception: " + e.toString());
             e.printStackTrace();
         }
+        
+        Scanner scan = new Scanner(System.in);
+		boolean quit = false;
+		while(true){
+			System.out.print("~$>");
+			String input = scan.nextLine();
+			String[] inputArray = input.split(" ");
+			if(inputArray.length < 1){
+				System.out.println("Please provide command");
+				continue;
+			}
+
+			switch (inputArray[0]){
+			case "get":
+				if(inputArray.length <= 1 ) {
+					quit = true;
+					System.err.println("No Filename given");
+					break;
+				}
+				getFile(inputArray[1]);
+				break;
+			case "put":
+				if(inputArray.length <= 1 ) {
+					quit = true;
+					System.err.println("No Filename given");
+					break;
+				}
+				break;
+			case "list":
+				break;
+			case "quit":
+				System.out.println("Going to quit :)");
+				quit = true;
+				break;
+			default :
+				System.out.println("Undefined command");
+				break;
+
+			}
+			if(quit) break;
+		}
     }
     
     public static void getFile(String fileName) throws NotBoundException, IOException {
