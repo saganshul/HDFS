@@ -39,21 +39,21 @@ import ProtoBuf.HDFSProtoBuf.ListFilesResponse;
 public class Client {
 	private static Registry registry = null;
 	private static INameNode nameNode = null;
-	private static String host = null; // It should contain the address of Namenode
+	private static String host = "10.0.3.246"; // It should contain the address of Namenode
 	private static Integer blockSize = 3200000;
-	
+
     private Client() {}
 
     public static void main(String[] args) throws NotBoundException, IOException {
 
         try {
             registry = LocateRegistry.getRegistry(host);
-            nameNode = (INameNode) registry.lookup("NameNode");            
+            nameNode = (INameNode) registry.lookup("NameNode");
         } catch (Exception e) {
             System.err.println("Client exception: " + e.toString());
             e.printStackTrace();
         }
-        
+
         Scanner scan = new Scanner(System.in);
 		boolean quit = false;
 		while(true){
@@ -96,7 +96,7 @@ public class Client {
 			if(quit) break;
 		}
     }
-    
+
     public static void getFile(String fileName) throws NotBoundException, IOException {
 		int handle = 0;
 		byte[] encoded_response = null;
@@ -107,7 +107,7 @@ public class Client {
 		IDataNode dn = null;
 		int status = -1;
 		int locationStatus = -1;
-		
+
 		OpenFileRequest.Builder request = OpenFileRequest.newBuilder();
 		request.setFileName(fileName);
 		request.setForRead(true);
@@ -120,14 +120,14 @@ public class Client {
 			System.out.println("Some error occurred");
 			return;
 		}
-		
+
 		List<Integer> blocks = response.getBlockNumsList();
 		handle = response.getHandle();
 		BlockLocationRequest.Builder locationRequest = BlockLocationRequest.newBuilder();
 		locationRequest.addAllBlockNums(blocks);
 		BlockLocationRequest encoded_locationRequest = locationRequest.build();
 		encoded_locationResponse = nameNode.blockLocations(encoded_locationRequest.toByteArray());
-		
+
 		locationResponse = BlockLocationResponse.parseFrom(encoded_locationResponse);
 
 		locationStatus = locationResponse.getStatus();
@@ -135,7 +135,7 @@ public class Client {
 			System.out.println("Some error occurred");
 			return;
 		}
-		
+
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
 		for (BlockLocations tempBlockLocations : locationResponse.getBlockLocationsList()) {
@@ -145,7 +145,7 @@ public class Client {
 				readBlockRequest.setBlockNumber(tempBlockLocations.getBlockNumber());
 				dn = (IDataNode) LocateRegistry.getRegistry(location.getIp(), location.getPort()).lookup("DataNode");
 				encoded_readBlockResponse = dn.readBlock(readBlockRequest.build().toByteArray());
-				
+
 				readBlockResponse = ReadBlockResponse.parseFrom(encoded_readBlockResponse);
 				if (readBlockResponse.getStatus() != 0) {
 					System.err.println("Error in ReadBlockRequest... Trying next...");
@@ -164,17 +164,17 @@ public class Client {
 		Files.write(Paths.get(fileName), byteArrayOutputStream.toByteArray());
 		closeFile(handle);
     }
-    
+
     public static void putFile(String fileName) throws NotBoundException, IOException {
     	int handle = 0;
 		byte[] encoded_response = null;
 		OpenFileResponse response = null;
 		int status = -1;
-		
+
 		int bytesRead = 0;
 		InputStream fStream = new FileInputStream(fileName);
 		byte[] fileChunk = new byte[blockSize];
-		
+
 		Path path = Paths.get(fileName);
 
 		if(!Files.isReadable(path)) {
@@ -188,7 +188,7 @@ public class Client {
 		if(Files.isDirectory(path)) {
 			System.err.println("Err: It is a directory");
 		}
-		
+
 		OpenFileRequest.Builder request = OpenFileRequest.newBuilder();
 		request.setFileName(fileName);
 		request.setForRead(false);
@@ -198,12 +198,12 @@ public class Client {
 
 		status = response.getStatus();
 		handle = response.getHandle();
-		
+
 		if(status != 0) {
 			System.err.println("Some error occurred");
 			return;
 		}
-		
+
 		InputStream inputStream = Files.newInputStream(path);
 		byte[] byteBuffer = new byte[blockSize];
 
@@ -253,32 +253,32 @@ public class Client {
 		fStream.close();
 		closeFile(handle);
     }
-    
+
     public static void listFile() throws NotBoundException, IOException {
-    	
+
     	byte[] encodedListResponse = null;
     	ListFilesResponse listResponse = null;
-    	
+
     	INameNode dn = null;
     	ListFilesRequest.Builder request = ListFilesRequest.newBuilder();
     	request.setDirName("HDFS");
-    	
+
     	encodedListResponse = nameNode.list(request.build().toByteArray());
-    	
+
     	listResponse = ListFilesResponse.parseFrom(encodedListResponse);
-    	
+
     	int status = listResponse.getStatus();
-		
+
 		if(status != 0) {
 			System.err.println("Some error occurred");
 			return;
 		}
-		
+
     	for (String fileName : listResponse.getFileNamesList()) {
     		System.out.println(fileName);
 		}
     }
-    
+
     public static void closeFile(int fileHandle) throws NotBoundException, IOException {
     	byte[] encodedResponse = null;
     	CloseFileResponse response = null;
@@ -292,8 +292,8 @@ public class Client {
 			return;
 		}
     }
-    
-    
-    
-    
+
+
+
+
 }

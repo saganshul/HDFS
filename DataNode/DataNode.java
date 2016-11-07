@@ -5,6 +5,8 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+import java.rmi.server.ExportException;
+
 
 import ProtoBuf.HDFSProtoBuf.WriteBlockResponse;
 import ProtoBuf.HDFSProtoBuf.WriteBlockRequest;
@@ -25,13 +27,20 @@ import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.rmi.RemoteException;
+
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
+import java.util.Enumeration;
+public class DataNode extends UnicastRemoteObject implements IDataNode {
 
-public class DataNode implements IDataNode {
-	
+	private static final long serialVersionUID = 1L;
 	private static Integer dataNodeId;
 	private static Statement stmt;
 	private static Connection con;
@@ -39,12 +48,12 @@ public class DataNode implements IDataNode {
 	private static Integer blockReportTimeout;
 	private static String myIp;
 	private static Integer myPort;
+	private static String nameNodeHost = "10.0.3.246";
+	private static String networkInterface = "enp7s0";
 	
-	public DataNode(){
+	public DataNode() throws RemoteException {
 		heartBeatTimeout = 1000;
 		blockReportTimeout = 1000;
-		myIp = "0.0.0.0";
-		myPort = 1099;
 		try {
 			Class.forName("com.mysql.jdbc.Driver");
 			con = DriverManager.getConnection("jdbc:mysql://localhost:3306/hdfs","root","njsirisgod");
@@ -55,30 +64,44 @@ public class DataNode implements IDataNode {
 			e.printStackTrace();
 		}
 	}
-	
-	public static void main(String args[]) {
-		
+
+	public static void main(String args[]) throws RemoteException {
+
 		if (args.length != 1) {
 			System.err.println("USAGE: java DataNode.DataNode <serverID>");
 			System.exit(-1);
 		}
 
 		dataNodeId = Integer.parseInt(args[0]);
-		
-        try {
-            DataNode obj = new DataNode();
-            IDataNode stub = (IDataNode) UnicastRemoteObject.exportObject(obj, 0);
 
-            // Bind the remote object's stub in the registry
-            Registry registry = LocateRegistry.getRegistry();
-            registry.bind("DataNode", stub);
+		Inet4Address inetAddress = null;
+		try {
+			Enumeration<InetAddress> enumeration = NetworkInterface.getByName(networkInterface).getInetAddresses();
+			while (enumeration.hasMoreElements()) {
+				InetAddress tempInetAddress = enumeration.nextElement();
+				if (tempInetAddress instanceof Inet4Address) {
+					inetAddress = (Inet4Address) tempInetAddress;
+				}
+			}
+		} catch (SocketException e) {
+			e.printStackTrace();
+		}
+		if (inetAddress == null) {
+			System.err.println("Error Obtaining Network Information");
+			System.exit(-1);
+		}
+		myIp = inetAddress.getHostAddress();
+		myPort = Registry.REGISTRY_PORT;
+		System.setProperty("java.rmi.server.hostname", inetAddress.getHostAddress());
+		try {
+			LocateRegistry.createRegistry(Registry.REGISTRY_PORT);
+		} catch (ExportException e) {
+			System.err.println("Using existing registry...");
+		}
+		LocateRegistry.getRegistry(inetAddress.getHostAddress(), Registry.REGISTRY_PORT).rebind("DataNode", new DataNode());
 
-            System.err.println("DataNode ready");
-        } catch (Exception e) {
-            System.err.println("DataNode exception: " + e.toString());
-            e.printStackTrace();
-        }
-        
+		System.out.println("Loaded DataNode...");
+
         new Thread(new Runnable() {
 
 			@Override
@@ -88,7 +111,7 @@ public class DataNode implements IDataNode {
 					heartBeatRequest.setId(dataNodeId);
 					INameNode nameNode = null;
 					try {
-						nameNode = (INameNode) LocateRegistry.getRegistry().lookup("NameNode");
+						nameNode = (INameNode) LocateRegistry.getRegistry(nameNodeHost).lookup("NameNode");
 					} catch (RemoteException | NotBoundException e) {
 						e.printStackTrace();
 					}
@@ -119,7 +142,7 @@ public class DataNode implements IDataNode {
 				}
 			}
 		}).start();
-        
+
         new Thread(new Runnable() {
 
 			@Override
@@ -127,21 +150,21 @@ public class DataNode implements IDataNode {
 				while (true) {
 					INameNode nameNode = null;
 					try {
-						nameNode = (INameNode) LocateRegistry.getRegistry().lookup("NameNode");
+						nameNode = (INameNode) LocateRegistry.getRegistry(nameNodeHost).lookup("NameNode");
 					} catch (RemoteException | NotBoundException e) {
 						e.printStackTrace();
 					}
-					
+
 					BlockReportRequest.Builder blockReport = BlockReportRequest.newBuilder();
 					ResultSet res = null;
 					ArrayList<Integer> blockNumbers = new ArrayList<Integer>();
 					DataNodeLocation.Builder dataNodeLocation = DataNodeLocation.newBuilder();
 					dataNodeLocation.setIp(myIp);
 					dataNodeLocation.setPort(myPort);
-					
+
 					blockReport.setId(dataNodeId);
 					blockReport.setLocation(dataNodeLocation);
-					
+
 					try {
 						res = stmt.executeQuery("select blocknum from datablock");
 						while(res.next()) {
@@ -170,7 +193,7 @@ public class DataNode implements IDataNode {
 							System.exit(-1);
 						}
 					}
-					
+
 					try {
 						Thread.sleep(blockReportTimeout);
 					} catch (InterruptedException e) {
@@ -206,7 +229,7 @@ public class DataNode implements IDataNode {
 		WriteBlockResponse finalRes=response.build();
 		return finalRes.toByteArray();
 	}
-	
+
 	public byte[] readBlock(byte[] message) {
 		ReadBlockResponse.Builder response = ReadBlockResponse.newBuilder();
 		int blockNu = -1;
@@ -224,7 +247,7 @@ public class DataNode implements IDataNode {
 		    }
 			resultSet.close();
 			response.addData(ByteString.copyFrom(data.getBytes()));
-			
+
 		} catch (SQLException e) {
 			response.setStatus(1);
 			e.printStackTrace();
@@ -232,7 +255,7 @@ public class DataNode implements IDataNode {
 			response.setStatus(1);
 			e.printStackTrace();
 		}
-		
+
 		return response.build().toByteArray();
 	}
 }
