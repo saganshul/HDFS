@@ -14,6 +14,12 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.rmi.RemoteException;
+
 import ProtoBuf.HDFSProtoBuf.OpenFileResponse;
 import ProtoBuf.HDFSProtoBuf.OpenFileRequest;
 import ProtoBuf.HDFSProtoBuf.CloseFileResponse;
@@ -42,8 +48,9 @@ import java.util.Random;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-public class NameNode implements INameNode {
-
+public class NameNode extends UnicastRemoteObject implements INameNode {
+	
+	private static final long serialVersionUID = 1L; // Written to launch rmiregistry from program itself. Key thing is extends UnicastRemoteObject
 	private static int handle = 0;
 	private static int blocknu = 0;
 	private static HashMap<String, Integer> handler;
@@ -57,7 +64,8 @@ public class NameNode implements INameNode {
 	private static final String blockIDDelimiter = ",";
 	private static final String fileNameDelimiter = "--";
 	private static File dataFile;
-
+	private static String networkInterface = "enp7s0";
+	
 	public NameNode() throws IOException {
 		handler = new HashMap<String, Integer>();
 		handleToBlocks = new HashMap<Integer, ArrayList<Integer>>();
@@ -262,19 +270,28 @@ public class NameNode implements INameNode {
 
     public static void main(String args[]) throws IOException {
 
-        try {
-            NameNode obj = new NameNode();
-            INameNode stub = (INameNode) UnicastRemoteObject.exportObject(obj, 0);
+    	Inet4Address inetAddress = null;
+		try {
+			Enumeration<InetAddress> enumeration = NetworkInterface.getByName(networkInterface).getInetAddresses();
+			while (enumeration.hasMoreElements()) {
+				InetAddress tempInetAddress = enumeration.nextElement();
+				if (tempInetAddress instanceof Inet4Address) {
+					inetAddress = (Inet4Address) tempInetAddress;
+				}
+			}
+		} catch (SocketException e) {
+			System.out.println("Chud rha hai");
+			e.printStackTrace();
+		}
+		if (inetAddress == null) {
+			System.err.println("Error Obtaining Network Information...");
+			System.exit(-1);
+		}
 
-            // Bind the remote object's stub in the registry
-            Registry registry = LocateRegistry.getRegistry();
-            registry.bind("NameNode", stub);
-
-            System.err.println("NameNode ready");
-        } catch (Exception e) {
-            System.err.println("Server exception: " + e.toString());
-            e.printStackTrace();
-        }
+		System.setProperty("java.rmi.server.hostname", inetAddress.getHostAddress());
+		LocateRegistry.createRegistry(Registry.REGISTRY_PORT);
+		LocateRegistry.getRegistry(inetAddress.getHostAddress(), Registry.REGISTRY_PORT).rebind("NameNode", new NameNode());
+		System.out.println("Loaded NameNode...");
     }
 
     public byte[] heartBeat(byte[] message) {
