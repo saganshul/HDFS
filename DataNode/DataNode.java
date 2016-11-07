@@ -27,6 +27,10 @@ import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -38,6 +42,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.Properties;
 public class DataNode extends UnicastRemoteObject implements IDataNode {
 
 	private static final long serialVersionUID = 1L;
@@ -48,8 +53,9 @@ public class DataNode extends UnicastRemoteObject implements IDataNode {
 	private static Integer blockReportTimeout;
 	private static String myIp;
 	private static Integer myPort;
-	private static String nameNodeHost = "10.0.3.246";
-	private static String networkInterface = "enp7s0";
+	private static String nameNodeHost;
+	private static String networkInterface;
+	private static String configurationFile = "global.properties";
 	
 	public DataNode() throws RemoteException {
 		heartBeatTimeout = 1000;
@@ -65,15 +71,22 @@ public class DataNode extends UnicastRemoteObject implements IDataNode {
 		}
 	}
 
-	public static void main(String args[]) throws RemoteException {
-
+	public static void main(String args[]) throws IOException {
+		
 		if (args.length != 1) {
 			System.err.println("USAGE: java DataNode.DataNode <serverID>");
 			System.exit(-1);
 		}
 
 		dataNodeId = Integer.parseInt(args[0]);
-
+		
+		Properties properties = new Properties();
+		InputStream inputStream = new FileInputStream(configurationFile);
+		properties.load(inputStream);
+		
+		nameNodeHost = properties.getProperty("NameNode Location");
+		networkInterface = properties.getProperty("Network Interface");
+				
 		Inet4Address inetAddress = null;
 		try {
 			Enumeration<InetAddress> enumeration = NetworkInterface.getByName(networkInterface).getInetAddresses();

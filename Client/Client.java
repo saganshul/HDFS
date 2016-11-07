@@ -4,6 +4,7 @@ import java.util.Scanner;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Properties;
 
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -39,13 +40,19 @@ import ProtoBuf.HDFSProtoBuf.ListFilesResponse;
 public class Client {
 	private static Registry registry = null;
 	private static INameNode nameNode = null;
-	private static String host = "10.0.3.246"; // It should contain the address of Namenode
+	private static String host; // It should contain the address of Namenode
 	private static Integer blockSize = 3200000;
-
+	private static String configurationFile = "global.properties";
     private Client() {}
 
     public static void main(String[] args) throws NotBoundException, IOException {
-
+    	
+    	Properties properties = new Properties();
+		InputStream inputStream = new FileInputStream(configurationFile);
+		properties.load(inputStream);
+		
+		host = properties.getProperty("NameNode Location");
+		
         try {
             registry = LocateRegistry.getRegistry(host);
             nameNode = (INameNode) registry.lookup("NameNode");

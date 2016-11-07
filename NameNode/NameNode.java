@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Enumeration;
+import java.util.Properties;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.Random;
@@ -64,7 +65,8 @@ public class NameNode extends UnicastRemoteObject implements INameNode {
 	private static final String blockIDDelimiter = ",";
 	private static final String fileNameDelimiter = "--";
 	private static File dataFile;
-	private static String networkInterface = "enp7s0";
+	private static String networkInterface;
+	private static String configurationFile = "global.properties";
 	
 	public NameNode() throws IOException {
 		handler = new HashMap<String, Integer>();
@@ -76,7 +78,13 @@ public class NameNode extends UnicastRemoteObject implements INameNode {
 		idtoBlockMap = new HashMap<Integer, ArrayList<Integer>>();
 		blockToDataNodeMap = new HashMap<Integer, HashSet<DataNodeLocation>>();
 		dataFile = new File("nameNode.txt");
-
+		
+		Properties properties = new Properties();
+		InputStream inputStream = new FileInputStream(configurationFile);
+		properties.load(inputStream);
+		
+		networkInterface = properties.getProperty("Network Interface");
+		
 		try {
 			dataFile.createNewFile();
 		} catch (IOException e) {
