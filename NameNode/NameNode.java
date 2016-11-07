@@ -1,6 +1,14 @@
 package NameNode;
 
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
 
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -8,6 +16,8 @@ import java.rmi.server.UnicastRemoteObject;
 
 import ProtoBuf.HDFSProtoBuf.OpenFileResponse;
 import ProtoBuf.HDFSProtoBuf.OpenFileRequest;
+import ProtoBuf.HDFSProtoBuf.CloseFileResponse;
+import ProtoBuf.HDFSProtoBuf.CloseFileRequest;
 import ProtoBuf.HDFSProtoBuf.AssignBlockRequest;
 import ProtoBuf.HDFSProtoBuf.AssignBlockResponse;
 import ProtoBuf.HDFSProtoBuf.DataNodeLocation;
@@ -44,8 +54,12 @@ public class NameNode implements INameNode {
 	private static HashMap<Integer, HashSet<DataNodeLocation>> blockToDataNodeMap;
 	private static Lock lock;
 	private static Lock blockAssignLock;
+	private static final String blockIDDelimiter = ",";
+	private static final String fileNameDelimiter = "--";
+	private static File dataFile;
+	private static int commitTimeout = 10000;
 
-	public NameNode() {
+	public NameNode() throws IOException {
 		handler = new HashMap<String, Integer>();
 		handleToBlocks = new HashMap<Integer, ArrayList<Integer>>();
 		aliveDataNode = new HashSet<Integer>();
@@ -54,7 +68,72 @@ public class NameNode implements INameNode {
 		dataNodeMap = new HashMap<Integer, DataNodeLocation>();
 		idtoBlockMap = new HashMap<Integer, ArrayList<Integer>>();
 		blockToDataNodeMap = new HashMap<Integer, HashSet<DataNodeLocation>>();
+		dataFile = new File("nameNode.txt");
+
+		try {
+			dataFile.createNewFile();
+		} catch (IOException e) {
+
+			e.printStackTrace();
+		}
+
+    	if (dataFile == null) {
+			System.out.println("Data file missing...");
+			System.exit(-1);
+		}
+
+    	loadData();
 	}
+
+	private static void commitData() throws IOException {
+
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.append(blocknu);
+		stringBuilder.append(System.lineSeparator());
+		for (String tempfileNameString : handler.keySet()) {
+			stringBuilder.append(tempfileNameString);
+			stringBuilder.append(fileNameDelimiter);
+			String separator = "";
+			for (Integer tempInteger : handleToBlocks.get(handler.get(tempfileNameString))) {
+				stringBuilder.append(separator).append(Integer.toString(tempInteger));
+				separator = blockIDDelimiter;
+			}
+			stringBuilder.append(System.lineSeparator());
+		}
+
+		BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(dataFile));
+		bufferedWriter.write(stringBuilder.toString());
+		bufferedWriter.close();
+	}
+
+	private static void loadData() throws IOException {
+		BufferedReader bufferedReader = new BufferedReader(new FileReader(dataFile));
+
+		try {
+			String tempLine1 = bufferedReader.readLine();
+			blocknu = Integer.parseInt(tempLine1);
+		} catch(NumberFormatException ex){
+			System.out.println("Sorry! You persistant file is empty.Can't load anything");
+			bufferedReader.close();
+			return ;
+		}
+
+		for (String tempLine; (tempLine = bufferedReader.readLine()) != null;) {
+			Integer temphandle = new Integer(++handle);
+			String[] splitStrings = tempLine.split(fileNameDelimiter, 2);
+			String fileName = splitStrings[0];
+			ArrayList<Integer> blockNumbers = new ArrayList<Integer>();
+			if (!splitStrings[1].equals("")) {
+				for (String tempString : splitStrings[1].split(blockIDDelimiter)) {
+					blockNumbers.add(Integer.parseInt(tempString));
+				}
+			}
+			handler.put(fileName, temphandle);
+			handleToBlocks.put(temphandle, blockNumbers);
+		}
+		bufferedReader.close();
+	}
+
 
 	public byte[] openFile(byte[] message){
 		OpenFileRequest request;
@@ -121,7 +200,7 @@ public class NameNode implements INameNode {
 		int Handle = 0;
 		Random rand = new Random();
 		AssignBlockResponse.Builder tempResponse = AssignBlockResponse.newBuilder();
-		
+
 		/**
 		* These function is responsible for assigning blocks.
 		* Block will be unique.
@@ -129,15 +208,15 @@ public class NameNode implements INameNode {
 		* In response we will send status and BlockLocation which will contain block no. assigned and array of DataNode.
 		* Array of DataNode is present here to maintain replication of Blocks.
 		*/
-		
+
 		try {
 			Handle = AssignBlockRequest.parseFrom(message).getHandle();
 		} catch (InvalidProtocolBufferException e) {
-			System.err.println("AssignBlock: Err in getting file handle");	
+			System.err.println("AssignBlock: Err in getting file handle");
 			tempResponse.setStatus(1);
 			return tempResponse.build().toByteArray();
 		}
-		
+
 		/* Checking if DataNodes are available or not */
 		if (aliveDataNode.isEmpty()){
 			handler.values().remove(Handle);
@@ -145,7 +224,7 @@ public class NameNode implements INameNode {
 			tempResponse.setStatus(1);
 			return tempResponse.build().toByteArray();
 		}
-		
+
 		blockAssignLock.lock();
 		int blockNuToAssign = ++blocknu;
 		blockAssignLock.unlock();
@@ -156,7 +235,7 @@ public class NameNode implements INameNode {
 			tempResponse.setStatus(1);
 			return tempResponse.build().toByteArray();
 		}
-		
+
 		ArrayList<DataNodeLocation> dataNodeLocations =  new ArrayList<DataNodeLocation>();
 		int  dnid1 = rand.nextInt((aliveDataNode.size()));
 		if (aliveDataNode.size() > 1) {
@@ -180,7 +259,7 @@ public class NameNode implements INameNode {
 		return tempResponse.build().toByteArray();
 	}
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws IOException {
 
         try {
             NameNode obj = new NameNode();
@@ -249,7 +328,7 @@ public class NameNode implements INameNode {
 			return BlockReportResponse.newBuilder().addStatus(0).build().toByteArray();
 		}
 	}
-	
+
 	public byte[] blockLocations(byte[] message) {
 		BlockLocationRequest request = null;
 
@@ -273,8 +352,25 @@ public class NameNode implements INameNode {
 		BlockLocationResponse finalResponse = encoded_response.build();
 		return finalResponse.toByteArray();
 	}
-	
+
 	public byte[] list(byte[] message) {
 		return ListFilesResponse.newBuilder().setStatus(0).addAllFileNames(handler.keySet()).build().toByteArray();
 	}
+
+	public byte[] closeFile(byte[] message) {
+		try {
+			CloseFileRequest closeFileRequest = CloseFileRequest.parseFrom(message);
+			if (handleToBlocks.get(closeFileRequest.getHandle()) != null) {
+				commitData();
+				return CloseFileResponse.newBuilder().setStatus(0).build().toByteArray();
+			} else {
+				return CloseFileResponse.newBuilder().setStatus(1).build().toByteArray();
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			return CloseFileResponse.newBuilder().setStatus(1).build().toByteArray();
+		}
+	}
+
+
 }

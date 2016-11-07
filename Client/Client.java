@@ -21,6 +21,8 @@ import NameNode.INameNode;
 import DataNode.IDataNode;
 import ProtoBuf.HDFSProtoBuf.OpenFileResponse;
 import ProtoBuf.HDFSProtoBuf.OpenFileRequest;
+import ProtoBuf.HDFSProtoBuf.CloseFileResponse;
+import ProtoBuf.HDFSProtoBuf.CloseFileRequest;
 import ProtoBuf.HDFSProtoBuf.AssignBlockResponse;
 import ProtoBuf.HDFSProtoBuf.AssignBlockRequest;
 import ProtoBuf.HDFSProtoBuf.DataNodeLocation;
@@ -160,6 +162,7 @@ public class Client {
 		}
 
 		Files.write(Paths.get(fileName), byteArrayOutputStream.toByteArray());
+		closeFile(handle);
     }
     
     public static void putFile(String fileName) throws NotBoundException, IOException {
@@ -248,6 +251,7 @@ public class Client {
 		}
 
 		fStream.close();
+		closeFile(handle);
     }
     
     public static void listFile() throws NotBoundException, IOException {
@@ -274,6 +278,22 @@ public class Client {
     		System.out.println(fileName);
 		}
     }
+    
+    public static void closeFile(int fileHandle) throws NotBoundException, IOException {
+    	byte[] encodedResponse = null;
+    	CloseFileResponse response = null;
+    	CloseFileRequest.Builder request = CloseFileRequest.newBuilder();
+    	request.setHandle(fileHandle);
+    	encodedResponse = nameNode.closeFile(request.build().toByteArray());
+    	response = CloseFileResponse.parseFrom(encodedResponse);
+    	int status = response.getStatus();
+    	if(status != 0) {
+			System.err.println("Some err occurred :(");
+			return;
+		}
+    }
+    
+    
     
     
 }
