@@ -26,7 +26,11 @@ import ProtoBuf.HDFSProtoBuf.AssignBlockRequest;
 import ProtoBuf.HDFSProtoBuf.DataNodeLocation;
 import ProtoBuf.HDFSProtoBuf.WriteBlockRequest;
 import ProtoBuf.HDFSProtoBuf.WriteBlockResponse;
+import ProtoBuf.HDFSProtoBuf.ReadBlockRequest;
+import ProtoBuf.HDFSProtoBuf.ReadBlockResponse;
 import ProtoBuf.HDFSProtoBuf.BlockLocations;
+import ProtoBuf.HDFSProtoBuf.BlockLocationRequest;
+import ProtoBuf.HDFSProtoBuf.BlockLocationResponse;
 
 public class Client {
 	private static Registry registry = null;
@@ -93,8 +97,13 @@ public class Client {
 		int handle = 0;
 		byte[] encoded_response = null;
 		OpenFileResponse response = null;
+		byte[] encoded_locationResponse = null;
+		BlockLocationResponse locationResponse = null;
+		byte [] encoded_readBlockResponse = null;
+		IDataNode dn = null;
 		int status = -1;
-
+		int locationStatus = -1;
+		
 		OpenFileRequest.Builder request = OpenFileRequest.newBuilder();
 		request.setFileName(fileName);
 		request.setForRead(true);
@@ -103,11 +112,52 @@ public class Client {
 		response = OpenFileResponse.parseFrom(encoded_response);
 
 		status = response.getStatus();
-		System.out.println(status);
 		if(status != 0) {
 			System.out.println("Some error occurred");
 			return;
 		}
+		
+		List<Integer> blocks = response.getBlockNumsList();
+		handle = response.getHandle();
+		BlockLocationRequest.Builder locationRequest = BlockLocationRequest.newBuilder();
+		locationRequest.addAllBlockNums(blocks);
+		BlockLocationRequest encoded_locationRequest = locationRequest.build();
+		encoded_locationResponse = nameNode.blockLocations(encoded_locationRequest.toByteArray());
+		
+		locationResponse = BlockLocationResponse.parseFrom(encoded_locationResponse);
+
+		locationStatus = locationResponse.getStatus();
+		if(locationStatus != 0) {
+			System.out.println("Some error occurred");
+			return;
+		}
+		
+		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
+		for (BlockLocations tempBlockLocations : locationResponse.getBlockLocationsList()) {
+			ReadBlockResponse readBlockResponse = null;
+			for (DataNodeLocation location : tempBlockLocations.getLocationsList()) {
+				ReadBlockRequest.Builder readBlockRequest = ReadBlockRequest.newBuilder();
+				readBlockRequest.setBlockNumber(tempBlockLocations.getBlockNumber());
+				dn = (IDataNode) LocateRegistry.getRegistry(location.getIp(), location.getPort()).lookup("DataNode");
+				encoded_readBlockResponse = dn.readBlock(readBlockRequest.build().toByteArray());
+				
+				readBlockResponse = ReadBlockResponse.parseFrom(encoded_readBlockResponse);
+				if (readBlockResponse.getStatus() != 0) {
+					System.err.println("Error in ReadBlockRequest... Trying next...");
+					continue;
+				} else {
+					break;
+				}
+			}
+			if (readBlockResponse.getStatus() != 0) {
+				System.err.println("No more DataNodes... Failing...");
+				return;
+			}
+			byteArrayOutputStream.write(ByteString.copyFrom(readBlockResponse.getDataList()).toByteArray());
+		}
+
+		Files.write(Paths.get(fileName), byteArrayOutputStream.toByteArray());
     }
     
     public static void putFile(String fileName) throws NotBoundException, IOException {

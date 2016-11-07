@@ -16,8 +16,11 @@ import ProtoBuf.HDFSProtoBuf.HeartBeatRequest;
 import ProtoBuf.HDFSProtoBuf.HeartBeatResponse;
 import ProtoBuf.HDFSProtoBuf.BlockReportRequest;
 import ProtoBuf.HDFSProtoBuf.BlockReportResponse;
+import ProtoBuf.HDFSProtoBuf.BlockLocationRequest;
+import ProtoBuf.HDFSProtoBuf.BlockLocationResponse;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Enumeration;
@@ -36,6 +39,7 @@ public class NameNode implements INameNode {
 	private static HashSet<Integer> aliveDataNode;
 	private static HashMap<Integer, DataNodeLocation> dataNodeMap;
 	private static HashMap<Integer, ArrayList<Integer>> idtoBlockMap;
+	private static HashMap<Integer, HashSet<DataNodeLocation>> blockToDataNodeMap;
 	private static Lock lock;
 	private static Lock blockAssignLock;
 
@@ -47,6 +51,7 @@ public class NameNode implements INameNode {
 		blockAssignLock = new ReentrantLock();
 		dataNodeMap = new HashMap<Integer, DataNodeLocation>();
 		idtoBlockMap = new HashMap<Integer, ArrayList<Integer>>();
+		blockToDataNodeMap = new HashMap<Integer, HashSet<DataNodeLocation>>();
 	}
 
 	public byte[] openFile(byte[] message){
@@ -221,6 +226,12 @@ public class NameNode implements INameNode {
 			dataNodeLocation = blockRequest.getLocation();
 			if (blockRequest.getBlockNumbersCount() != 0) {
 				blockList = new ArrayList<Integer>(blockRequest.getBlockNumbersList());
+				for (Integer tempBlockID : blockRequest.getBlockNumbersList()) {
+					if (blockToDataNodeMap.get(tempBlockID) == null) {
+						blockToDataNodeMap.put(tempBlockID, new HashSet<DataNodeLocation>());
+					}
+					blockToDataNodeMap.get(tempBlockID).add(dataNodeLocation);
+				}
 			}
 			aliveDataNode.add(dataNodeId);
 			dataNodeMap.put(dataNodeId, dataNodeLocation);
@@ -235,5 +246,29 @@ public class NameNode implements INameNode {
 			e.printStackTrace();
 			return BlockReportResponse.newBuilder().addStatus(0).build().toByteArray();
 		}
+	}
+	
+	public byte[] blockLocations(byte[] message) {
+		BlockLocationRequest request = null;
+
+		BlockLocationResponse.Builder encoded_response = BlockLocationResponse.newBuilder();
+
+		try {
+			request = BlockLocationRequest.parseFrom(message);
+		} catch (Exception e){
+			System.err.println("Err msg : " + e.toString());
+		}
+
+		List<Integer> blocks = request.getBlockNumsList();
+		for (Integer block : blocks) {
+			BlockLocations.Builder temp = BlockLocations.newBuilder();
+			temp.addAllLocations(blockToDataNodeMap.get(block));
+			temp.setBlockNumber(block);
+			encoded_response.addBlockLocations(temp);
+		}
+
+		encoded_response.setStatus(0);
+		BlockLocationResponse finalResponse = encoded_response.build();
+		return finalResponse.toByteArray();
 	}
 }

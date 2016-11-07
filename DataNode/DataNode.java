@@ -8,6 +8,8 @@ import java.rmi.RemoteException;
 
 import ProtoBuf.HDFSProtoBuf.WriteBlockResponse;
 import ProtoBuf.HDFSProtoBuf.WriteBlockRequest;
+import ProtoBuf.HDFSProtoBuf.ReadBlockResponse;
+import ProtoBuf.HDFSProtoBuf.ReadBlockRequest;
 import ProtoBuf.HDFSProtoBuf.HeartBeatRequest;
 import ProtoBuf.HDFSProtoBuf.HeartBeatResponse;
 import ProtoBuf.HDFSProtoBuf.BlockReportRequest;
@@ -203,5 +205,34 @@ public class DataNode implements IDataNode {
 
 		WriteBlockResponse finalRes=response.build();
 		return finalRes.toByteArray();
+	}
+	
+	public byte[] readBlock(byte[] message) {
+		ReadBlockResponse.Builder response = ReadBlockResponse.newBuilder();
+		int blockNu = -1;
+		String data = new String();
+		try {
+			ReadBlockRequest readBlockRequest;
+			readBlockRequest = ReadBlockRequest.parseFrom(message);
+			blockNu = readBlockRequest.getBlockNumber();
+			PreparedStatement pstmt = con.prepareStatement("select data from datablock where blocknum = ?");
+			pstmt.setInt(1, blockNu);
+			ResultSet resultSet = pstmt.executeQuery();
+			response.setStatus(0);
+			while(resultSet.next()){
+				data = resultSet.getString("data");
+		    }
+			resultSet.close();
+			response.addData(ByteString.copyFrom(data.getBytes()));
+			
+		} catch (SQLException e) {
+			response.setStatus(1);
+			e.printStackTrace();
+		} catch (InvalidProtocolBufferException e) {
+			response.setStatus(1);
+			e.printStackTrace();
+		}
+		
+		return response.build().toByteArray();
 	}
 }
