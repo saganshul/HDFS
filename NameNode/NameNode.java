@@ -57,7 +57,6 @@ public class NameNode implements INameNode {
 	private static final String blockIDDelimiter = ",";
 	private static final String fileNameDelimiter = "--";
 	private static File dataFile;
-	private static int commitTimeout = 10000;
 
 	public NameNode() throws IOException {
 		handler = new HashMap<String, Integer>();
@@ -119,7 +118,9 @@ public class NameNode implements INameNode {
 		}
 
 		for (String tempLine; (tempLine = bufferedReader.readLine()) != null;) {
+			lock.lock();
 			Integer temphandle = new Integer(++handle);
+			lock.unlock();
 			String[] splitStrings = tempLine.split(fileNameDelimiter, 2);
 			String fileName = splitStrings[0];
 			ArrayList<Integer> blockNumbers = new ArrayList<Integer>();
