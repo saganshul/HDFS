@@ -31,12 +31,14 @@ import ProtoBuf.HDFSProtoBuf.ReadBlockResponse;
 import ProtoBuf.HDFSProtoBuf.BlockLocations;
 import ProtoBuf.HDFSProtoBuf.BlockLocationRequest;
 import ProtoBuf.HDFSProtoBuf.BlockLocationResponse;
+import ProtoBuf.HDFSProtoBuf.ListFilesRequest;
+import ProtoBuf.HDFSProtoBuf.ListFilesResponse;
 
 public class Client {
 	private static Registry registry = null;
 	private static INameNode nameNode = null;
 	private static String host = null; // It should contain the address of Namenode
-	private static Integer blockSize = 32000000;
+	private static Integer blockSize = 3200000;
 	
     private Client() {}
 
@@ -79,6 +81,7 @@ public class Client {
 				putFile(inputArray[1]);
 				break;
 			case "list":
+				listFile();
 				break;
 			case "quit":
 				System.out.println("Going to quit :)");
@@ -87,7 +90,6 @@ public class Client {
 			default :
 				System.out.println("Undefined command");
 				break;
-
 			}
 			if(quit) break;
 		}
@@ -246,7 +248,31 @@ public class Client {
 		}
 
 		fStream.close();
+    }
+    
+    public static void listFile() throws NotBoundException, IOException {
+    	
+    	byte[] encodedListResponse = null;
+    	ListFilesResponse listResponse = null;
+    	
+    	INameNode dn = null;
+    	ListFilesRequest.Builder request = ListFilesRequest.newBuilder();
+    	request.setDirName("HDFS");
+    	
+    	encodedListResponse = nameNode.list(request.build().toByteArray());
+    	
+    	listResponse = ListFilesResponse.parseFrom(encodedListResponse);
+    	
+    	int status = listResponse.getStatus();
 		
+		if(status != 0) {
+			System.err.println("Some error occurred");
+			return;
+		}
+		
+    	for (String fileName : listResponse.getFileNamesList()) {
+    		System.out.println(fileName);
+		}
     }
     
     

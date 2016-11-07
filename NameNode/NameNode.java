@@ -18,6 +18,8 @@ import ProtoBuf.HDFSProtoBuf.BlockReportRequest;
 import ProtoBuf.HDFSProtoBuf.BlockReportResponse;
 import ProtoBuf.HDFSProtoBuf.BlockLocationRequest;
 import ProtoBuf.HDFSProtoBuf.BlockLocationResponse;
+import ProtoBuf.HDFSProtoBuf.ListFilesRequest;
+import ProtoBuf.HDFSProtoBuf.ListFilesResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -270,5 +272,9 @@ public class NameNode implements INameNode {
 		encoded_response.setStatus(0);
 		BlockLocationResponse finalResponse = encoded_response.build();
 		return finalResponse.toByteArray();
+	}
+	
+	public byte[] list(byte[] message) {
+		return ListFilesResponse.newBuilder().setStatus(0).addAllFileNames(handler.keySet()).build().toByteArray();
 	}
 }

@@ -9,4 +9,5 @@ public interface INameNode extends Remote {
 	byte[] heartBeat(byte[] message) throws RemoteException;
 	byte[] blockReport(byte[] message) throws RemoteException;
 	byte[] blockLocations(byte[] message) throws RemoteException;
+	byte[] list(byte[] serializedListFilesRequest) throws RemoteException;
 }
