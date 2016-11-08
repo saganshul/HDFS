@@ -79,12 +79,6 @@ public class NameNode extends UnicastRemoteObject implements INameNode {
 		blockToDataNodeMap = new HashMap<Integer, HashSet<DataNodeLocation>>();
 		dataFile = new File("nameNode.txt");
 		
-		Properties properties = new Properties();
-		InputStream inputStream = new FileInputStream(configurationFile);
-		properties.load(inputStream);
-		
-		networkInterface = properties.getProperty("Network Interface");
-		
 		try {
 			dataFile.createNewFile();
 		} catch (IOException e) {
@@ -277,7 +271,13 @@ public class NameNode extends UnicastRemoteObject implements INameNode {
 	}
 
     public static void main(String args[]) throws IOException {
-
+    	
+    	Properties properties = new Properties();
+		InputStream inputStream = new FileInputStream(configurationFile);
+		properties.load(inputStream);
+		
+		networkInterface = properties.getProperty("Network Interface");
+		
     	Inet4Address inetAddress = null;
 		try {
 			Enumeration<InetAddress> enumeration = NetworkInterface.getByName(networkInterface).getInetAddresses();
