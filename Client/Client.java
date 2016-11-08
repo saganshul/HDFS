@@ -41,7 +41,7 @@ public class Client {
 	private static Registry registry = null;
 	private static INameNode nameNode = null;
 	private static String host; // It should contain the address of Namenode
-	private static Integer blockSize = 3200000;
+	private static Integer blockSize = 8000000;
 	private static String configurationFile = "global.properties";
     private Client() {}
 
@@ -150,9 +150,12 @@ public class Client {
 			for (DataNodeLocation location : tempBlockLocations.getLocationsList()) {
 				ReadBlockRequest.Builder readBlockRequest = ReadBlockRequest.newBuilder();
 				readBlockRequest.setBlockNumber(tempBlockLocations.getBlockNumber());
-				dn = (IDataNode) LocateRegistry.getRegistry(location.getIp(), location.getPort()).lookup("DataNode");
+				try {
+					dn = (IDataNode) LocateRegistry.getRegistry(location.getIp(), location.getPort()).lookup("DataNode");
+				} catch (Exception e) {
+					continue;
+				}
 				encoded_readBlockResponse = dn.readBlock(readBlockRequest.build().toByteArray());
-
 				readBlockResponse = ReadBlockResponse.parseFrom(encoded_readBlockResponse);
 				if (readBlockResponse.getStatus() != 0) {
 					System.err.println("Error in ReadBlockRequest... Trying next...");
@@ -218,22 +221,18 @@ public class Client {
 			AssignBlockRequest.Builder assignBlockRequest = AssignBlockRequest.newBuilder();
 			assignBlockRequest.setHandle(handle);
 			byte[] assignBlockResponse = nameNode.assignBlock(assignBlockRequest.build().toByteArray());
-
 			if (AssignBlockResponse.parseFrom(assignBlockResponse).getStatus() != 0) {
 				System.err.println("Err occurred");
 				return;
 			}
 
 			BlockLocations blockLocations = AssignBlockResponse.parseFrom(assignBlockResponse).getNewBlock();
-			ArrayList<DataNodeLocation> locationsToReplicate = new ArrayList<DataNodeLocation> (blockLocations.getLocationsList());
 			WriteBlockRequest.Builder writeBlockRequest = WriteBlockRequest.newBuilder();
 			writeBlockRequest.setBlockInfo(blockLocations);
 			writeBlockRequest.addData(ByteString.copyFrom(bytesRead == blockSize ? fileChunk : Arrays.copyOf(fileChunk, bytesRead))); // Check the case when fileChunk is not full
 			boolean gotDataNode = false;
 			IDataNode dn = null;
-
-			for (DataNodeLocation tempLocation : locationsToReplicate) {
-
+			for (DataNodeLocation tempLocation : blockLocations.getLocationsList()) {
 				try {
 					dn = (IDataNode) LocateRegistry.getRegistry(tempLocation.getIp(), tempLocation.getPort()).lookup("DataNode");
 					gotDataNode = true;
@@ -246,8 +245,6 @@ public class Client {
 					System.err.println("Err occurred");
 					gotDataNode = false;
 					continue;
-				} else {
-					break;
 				}
 			}
 
