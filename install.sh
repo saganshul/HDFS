@@ -3,5 +3,5 @@ apt-get install protobuf-compiler
 apt-get install libprotobuf-java
 apt-get install build-essential
 apt-get install mysql-server
-mysql -u root -pnjsirisgod -e 'create database hdfs'
-mysql -u root -pnjsirisgod -e 'create table if not exists datablock(blocknum int,data longtext,primary key(blocknum))' hdfs
+mysql -u root -ppassword -e 'create database hdfs'
+mysql -u root -ppassword -e 'create table if not exists datablock(blocknum int,data longtext,primary key(blocknum))' hdfs
